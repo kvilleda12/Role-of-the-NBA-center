@@ -1,4 +1,7 @@
 # Byte-compiled / optimized / DLL files
+Data/*.duckdb
+Data/*.duckdb.wal
+Data/*.sqlite
 __pycache__/
 *.py[codz]
 *$py.class

@@ -1,0 +1,28 @@
+{
+  "checked_on": "2026-10-31",
+  "dataset": "wyattowalsh/basketball",
+  "dataset_url": "https://www.kaggle.com/datasets/wyattowalsh/basketball",
+  "download_url": "https://www.kaggle.com/api/v1/datasets/download/wyattowalsh/basketball/nba.duckdb",
+  "local_matches_published_download": true,
+  "local_sha256": "e507ee3e10ae6f57180779e68b3a94db0575566b063bb6d997fa83815507a5e6",
+  "download_sha256": "e507ee3e10ae6f57180779e68b3a94db0575566b063bb6d997fa83815507a5e6",
+  "size_bytes": 12288,
+  "table_count": 0,
+  "published_player_info_position_counts": {
+    "Guard": 1604,
+    "Forward": 1533,
+    "Center": 571,
+    "Guard-Forward": 142,
+    "Forward-Center": 117,
+    "Center-Forward": 76,
+    "Forward-Guard": 65,
+    "nan": 63
+  },
+  "requested_seasons": {
+    "first": "1980-81",
+    "last": "2024-25",
+    "count": 45
+  },
+  "condensed_database_created": false,
+  "blocker": "Published DuckDB is empty; published player-info positions do not distinguish PF from SF."
+}
