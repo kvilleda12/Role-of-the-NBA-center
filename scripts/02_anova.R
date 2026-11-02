@@ -76,14 +76,52 @@ sapply(rates_by_era, sd)
 
 
 # Welch's ANOVA: allows unequal population variances
-# Normality concerns and independence limitations still apply
-welch_result = oneway.test(
-  three_point_attempt_rate ~ assigned_era,
-  data = big_men_analysis,
-  var.equal = FALSE
+# Normality and independence assumptions still apply
+
+# Group sizes, means, and variances
+nj = sapply(rates_by_era, length)
+xbarj = sapply(rates_by_era, mean)
+s2j = sapply(rates_by_era, var)
+
+g = length(rates_by_era)
+vj = nj - 1
+
+# Inverse-variance weights
+wj = nj / s2j
+W = sum(wj)
+
+# Weighted grand mean
+xbar_w = sum(wj * xbarj) / W
+
+# Weighted between-group sum of squares and mean square
+SSM_star = sum(wj * (xbarj - xbar_w)^2)
+MSM_star = SSM_star / (g - 1)
+
+# Adjustment for unequal variances
+Lambda = sum((1 - wj / W)^2 / vj)
+
+# Welch's F statistic
+F_welch = MSM_star / (
+  1 + 2 * (g - 2) * Lambda / (g^2 - 1)
 )
 
-welch_result
+# Degrees of freedom
+df1 = g - 1
+df2 = (g^2 - 1) / (3 * Lambda)
+
+# Upper-tail p-value and critical value
+p_welch = pf(F_welch, df1, df2, lower.tail = FALSE)
+F_crit_welch = qf(alpha, df1, df2, lower.tail = FALSE)
+
+# Display results
+F_welch
+df1
+df2
+F_crit_welch
+p_welch
+
+# Reject H0 when the p-value is below alpha
+p_welch < alpha
 
 
 # Rank-based comparison across the four eras
