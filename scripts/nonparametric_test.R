@@ -142,23 +142,6 @@ sapply(x_split, function(v) sum(v == 0))
 sapply(x_split, function(v) sum(v > 0.10))
 
 
-# Graph: scatterplot in each era with a smooth trend line
-old_par = par(mfrow = c(2, 2))
-
-for (era_name in names(x_split)) {
-  plot(x_split[[era_name]], y_split[[era_name]],
-       pch = 19, col = rgb(0, 0, 1, 0.4),
-       xlim = c(0, 1), ylim = c(0, 7),
-       main = era_name,
-       xlab = "Three-point attempt rate",
-       ylab = "Offensive rebounds per 36")
-  lines(lowess(x_split[[era_name]], y_split[[era_name]]),
-        col = "red", lwd = 2)
-}
-
-par(old_par)
-
-
 # Sample correlation in each era
 rj = sapply(names(x_split), function(era_name) {
   cor(x_split[[era_name]], y_split[[era_name]])
@@ -287,50 +270,97 @@ data.frame(r = rj,
            reject_H0 = perm_pval < alpha_fw)
 
 
-# Graph: permutation distribution of the correlation under H0 in each era
-old_par = par(mfrow = c(2, 2))
-
-for (era_name in names(perm_cor)) {
-  hist(perm_cor[[era_name]], breaks = 40, col = "lightpink",
-       xlim = c(-1, 1),
-       main = era_name,
-       xlab = "Correlation after shuffling", ylab = "Frequency")
-  abline(v = rj[era_name], col = "blue", lwd = 2)
-}
-
-par(old_par)
-
-
-# Graph: bootstrap distribution of the correlation in each era
-old_par = par(mfrow = c(2, 2))
-
-for (era_name in names(boot_cor)) {
-  hist(boot_cor[[era_name]], breaks = 40, col = "lightblue",
-       xlim = c(-1, 0),
-       main = era_name,
-       xlab = "Bootstrap correlation", ylab = "Frequency")
-  abline(v = ci_fw[era_name, ], col = "red", lwd = 2, lty = 2)
-  abline(v = rj[era_name], col = "blue", lwd = 2)
-}
-
-par(old_par)
-
-
-# Graph: correlation and FWER-adjusted bootstrap interval for each era
-plot(1:g, rj, pch = 19, xaxt = "n",
-     xlim = c(0.5, g + 0.5), ylim = c(-1, 0.1),
-     main = "Correlation by era with adjusted bootstrap intervals",
-     xlab = "Era", ylab = "Correlation (3PA rate vs offensive rebounds)")
-axis(1, at = 1:g, labels = names(rj))
-arrows(1:g, ci_fw[, 1], 1:g, ci_fw[, 2],
-       angle = 90, code = 3, length = 0.08)
-abline(h = 0, lty = 2, col = "gray")
-
-
 # For comparison: the correlation with all eras pooled together
 cor(nonpar_data$three_point_attempt_rate, nonpar_data$orb_per_36)
 
-# Boxplot of offensive rebounding by era for context
-boxplot(orb_per_36 ~ assigned_era, data = nonpar_data, col = "lightblue",
-        main = "Offensive rebounds per 36 minutes by era",
-        xlab = "Era", ylab = "Offensive rebounds per 36 minutes")
+
+# ======================= Figures for the report ===============================
+# Each figure is written to reports/figures/ in the colours used in the report
+
+col_navy = "#2E4A87"
+col_teal = "#1A9E8C"
+col_orange = "#E07B39"
+col_gray = "#9EA3A8"
+col_purple = "#6A3D9A"
+
+era_titles = c(era_1 = "Era 1 (1981–1991)", era_2 = "Era 2 (1992–2002)",
+               era_3 = "Era 3 (2003–2013)", era_4 = "Era 4 (2014–2025)")
+
+dir.create("reports/figures", showWarnings = FALSE)
+
+
+# Figure 3.1: scatterplot in each era with a smooth trend line
+png("reports/figures/q3_fig1_scatter.png", width = 2000, height = 1500,
+    res = 250, family = "serif")
+par(mfrow = c(2, 2), mar = c(4.2, 4.5, 2.2, 1), las = 1)
+
+for (era_name in names(x_split)) {
+  plot(x_split[[era_name]], y_split[[era_name]],
+       pch = 16, cex = 0.7, col = adjustcolor(col_navy, 0.45),
+       xlim = c(0, 0.9), ylim = c(0, 7),
+       main = era_titles[era_name],
+       xlab = "Three-point attempt rate",
+       ylab = "Offensive rebounds per 36")
+  lines(lowess(x_split[[era_name]], y_split[[era_name]]),
+        col = col_orange, lwd = 2.5)
+  legend("topright", legend = sprintf("r = %.3f", rj[era_name]), bty = "n")
+}
+
+dev.off()
+
+
+# Figure 3.2: bootstrap distribution of r in each era, with the adjusted
+# percentile interval (dashed) and the Fisher interval (dotted)
+png("reports/figures/q3_fig2_bootstrap.png", width = 2000, height = 1500,
+    res = 250, family = "serif")
+par(mfrow = c(2, 2), mar = c(4.2, 4.5, 2.2, 1), las = 1)
+
+for (era_name in names(boot_cor)) {
+  hist(boot_cor[[era_name]], breaks = 40, col = col_navy, border = "white",
+       main = era_titles[era_name],
+       xlab = "Bootstrap correlation r*", ylab = "Frequency")
+  abline(v = ci_fw[era_name, ], col = col_orange, lwd = 2, lty = 2)
+  abline(v = classical[era_name, c("fisher_lower", "fisher_upper")],
+         col = col_purple, lwd = 2, lty = 3)
+}
+
+dev.off()
+
+
+# Figure 3.3: permutation distribution of r under H0 in each era, with the
+# observed correlation
+png("reports/figures/q3_fig3_permutation.png", width = 2000, height = 1500,
+    res = 250, family = "serif")
+par(mfrow = c(2, 2), mar = c(4.2, 4.5, 2.2, 1), las = 1)
+
+for (era_name in names(perm_cor)) {
+  counts = hist(perm_cor[[era_name]], breaks = 40, plot = FALSE)$counts
+  hist(perm_cor[[era_name]], breaks = 40, col = col_gray, border = "white",
+       xlim = range(c(perm_cor[[era_name]], rj[era_name])) + c(-0.05, 0.05),
+       ylim = c(0, 1.3*max(counts)),
+       main = era_titles[era_name],
+       xlab = "Correlation after shuffling", ylab = "Frequency")
+  abline(v = rj[era_name], col = col_orange, lwd = 2.5)
+  legend("topright", legend = sprintf("Observed r = %.3f", rj[era_name]),
+         col = col_orange, lwd = 2.5, bty = "n", cex = 0.9)
+}
+
+dev.off()
+
+
+# Figure 3.4: correlation and FWER-adjusted bootstrap interval for each era
+png("reports/figures/q3_fig4_by_era.png", width = 2000, height = 1200,
+    res = 250, family = "serif")
+par(mar = c(4.2, 4.5, 2.2, 1), las = 1)
+
+plot(1:g, rj, pch = 19, cex = 1.3, col = col_navy, xaxt = "n",
+     xlim = c(0.5, g + 0.5), ylim = c(-1, 0.1),
+     main = "Correlation by Era with Adjusted Bootstrap Intervals",
+     xlab = "Era", ylab = "Correlation r")
+axis(1, at = 1:g, labels = era_titles)
+arrows(1:g, ci_fw[, 1], 1:g, ci_fw[, 2],
+       angle = 90, code = 3, length = 0.08, col = col_navy, lwd = 2)
+abline(h = 0, lty = 2, col = col_gray)
+text(1:g, ci_fw[, 1] - 0.07, sprintf("r² = %.2f", rj^2), col = col_teal)
+
+dev.off()
