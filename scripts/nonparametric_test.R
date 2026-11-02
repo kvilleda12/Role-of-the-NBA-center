@@ -1,16 +1,24 @@
 # Question 3: Nonparametric test (bootstrap)
-# Claim: among modern big men (era 4), three-point attempt rate and
+# Claim: within each era, big men's three-point attempt rate and
 # offensive rebounds per 36 minutes are correlated (we expect negatively:
 # big men who shoot more threes rebound less on the offensive glass).
 #
 # This is a claim about association (the correlation rho), not about a
 # mean or any other measure of central tendency.
 #
-# H0: rho = 0
-# H1: rho != 0
+# For each era j = 1, 2, 3, 4:
+# H0: rho_j = 0
+# H1: rho_j != 0
 #
 # Method: nonparametric bootstrap percentile confidence interval for the
-# correlation (class L10 code). Reject H0 if the interval excludes 0.
+# correlation in each era (class L10 code). Four tests are run, so each
+# uses the per-test level that holds the familywise error rate at alpha
+# (L06: FWER = 1 - (1 - alpha_fw)^d, solved for alpha_fw). Reject H0 for
+# an era if its adjusted interval excludes 0.
+#
+# For comparison, the L13 classical T test and Fisher interval for rho are
+# also computed. They assume bivariate normality, which fails here, so they
+# are reported for reference only.
 
 # Set the significance level
 alpha = 0.05
@@ -98,103 +106,229 @@ nonpar_data$assigned_era = factor(
 )
 
 
-# Primary test group: era 4 (2014-2025)
-era4 = subset(nonpar_data, assigned_era == "era_4")
+# Split each variable by era (values first, groups second)
+x_split = split(nonpar_data$three_point_attempt_rate, nonpar_data$assigned_era)
+y_split = split(nonpar_data$orb_per_36, nonpar_data$assigned_era)
 
-x = era4$three_point_attempt_rate
-y = era4$orb_per_36
-n = length(x)
+nj = sapply(x_split, length)
+g = length(x_split)
 
-n
-summary(x)
-summary(y)
+nj
+
+# Familywise error rate if each of the d = 4 tests used alpha (L06)
+d = g
+1 - (1 - alpha)^d
+
+# Per-test level that holds the familywise error rate at alpha
+alpha_fw = 1 - (1 - alpha)^(1/d)
+
+alpha_fw
+1 - alpha_fw   # confidence level of each adjusted interval
 
 
 # Why a nonparametric test: the usual t test for a correlation assumes
 # the two variables are (bivariate) normal, so check each one formally
-shapiro.test(x)
-shapiro.test(y)
+for (era_name in names(x_split)) {
+  cat("\nNormality tests for", era_name, "\n")
+
+  print(shapiro.test(x_split[[era_name]]))
+  print(shapiro.test(y_split[[era_name]]))
+}
 
 # Players with no three-point attempts pile up at zero
-sum(x == 0)
+sapply(x_split, function(v) sum(v == 0))
+
+# Few players took more than 10% of their shots from three in early eras
+sapply(x_split, function(v) sum(v > 0.10))
 
 
-# Graphs: histograms of both variables and a scatterplot
-old_par = par(mfrow = c(1, 2))
+# Graph: scatterplot in each era with a smooth trend line
+old_par = par(mfrow = c(2, 2))
 
-hist(x, breaks = seq(0, 1, by = 0.05), col = "lightblue",
-     main = "Era 4: three-point attempt rate",
-     xlab = "Three-point attempt rate", ylab = "Number of players")
-
-hist(y, breaks = 20, col = "lightblue",
-     main = "Era 4: offensive rebounds per 36",
-     xlab = "Offensive rebounds per 36 minutes", ylab = "Number of players")
+for (era_name in names(x_split)) {
+  plot(x_split[[era_name]], y_split[[era_name]],
+       pch = 19, col = rgb(0, 0, 1, 0.4),
+       xlim = c(0, 1), ylim = c(0, 7),
+       main = era_name,
+       xlab = "Three-point attempt rate",
+       ylab = "Offensive rebounds per 36")
+  lines(lowess(x_split[[era_name]], y_split[[era_name]]),
+        col = "red", lwd = 2)
+}
 
 par(old_par)
 
-plot(x, y, pch = 19, col = rgb(0, 0, 1, 0.4),
-     main = "Era 4: three-point attempt rate vs offensive rebounding",
-     xlab = "Three-point attempt rate",
-     ylab = "Offensive rebounds per 36 minutes")
 
-# Smooth trend line to judge the shape of the relationship
-lines(lowess(x, y), col = "red", lwd = 2)
-
-
-# Sample correlation
-rxy = cor(x, y)
-
-rxy
-
-
-# Bootstrap: resample player INDICES with replacement so each player's
-# (x, y) pair stays together, then recompute the correlation
-set.seed(123)
-nboot = 10000
-mycor = c()
-myindex = seq(1, n, 1)
-for(k in 1:nboot){
-  sboot = sample(myindex, n, replace=T)
-  Xboot = x[sboot]
-  Yboot = y[sboot]
-  mycor = c(mycor, cor(Xboot, Yboot))
-}
-
-# Bootstrap distribution summary
-mean(mycor)
-sd(mycor)
-
-# 95% percentile confidence interval for rho
-cirxy = quantile(mycor, c(alpha/2, 1-alpha/2))
-
-cirxy
-
-# Decision: reject H0 if 0 is outside the interval
-cirxy[1] > 0 | cirxy[2] < 0
-
-hist(mycor, breaks = 40, col = "lightblue",
-     main = "Bootstrap distribution of the correlation (era 4)",
-     xlab = "Bootstrap correlation", ylab = "Frequency")
-abline(v = cirxy, col = "red", lwd = 2, lty = 2)
-abline(v = rxy, col = "blue", lwd = 2)
-
-
-# Supplementary: the same bootstrap interval within every era, to see
-# whether the trade-off is specific to the modern era
-era_boot = sapply(split(nonpar_data, nonpar_data$assigned_era), function(d) {
-  xe = d$three_point_attempt_rate
-  ye = d$orb_per_36
-  ne = nrow(d)
-  set.seed(123)
-  mycor_e = c()
-  for(k in 1:nboot){
-    sboot = sample(seq(1, ne, 1), ne, replace=T)
-    mycor_e = c(mycor_e, cor(xe[sboot], ye[sboot]))
-  }
-  c(n = ne, r = cor(xe, ye), quantile(mycor_e, c(alpha/2, 1-alpha/2)))
+# Sample correlation in each era
+rj = sapply(names(x_split), function(era_name) {
+  cor(x_split[[era_name]], y_split[[era_name]])
 })
 
-t(era_boot)
+rj
+
+# Share of the variation in offensive rebounding explained (L13)
+rj^2
+
+
+# Bootstrap in each era: resample player INDICES with replacement so
+# each player's (x, y) pair stays together, then recompute the correlation
+nboot = 10000
+boot_cor = list()
+
+for (era_name in names(x_split)) {
+  X = x_split[[era_name]]
+  Y = y_split[[era_name]]
+  n = length(X)
+
+  set.seed(123)
+  mycor = c()
+  myindex = seq(1, n, 1)
+  for(k in 1:nboot){
+    sboot = sample(myindex, n, replace=T)
+    Xboot = X[sboot]
+    Yboot = Y[sboot]
+    mycor = c(mycor, cor(Xboot, Yboot))
+  }
+
+  boot_cor[[era_name]] = mycor
+}
+
+# Bootstrap standard error in each era
+se_boot = sapply(boot_cor, sd)
+
+# Unadjusted 95% percentile intervals
+ci_95 = t(sapply(boot_cor, quantile, probs = c(alpha/2, 1-alpha/2)))
+
+# FWER-adjusted intervals used for the decisions
+ci_fw = t(sapply(boot_cor, quantile,
+                 probs = c(alpha_fw/2, 1-alpha_fw/2)))
+
+results = data.frame(
+  n = nj,
+  r = rj,
+  r_squared = rj^2,
+  se_boot = se_boot,
+  ci95_lower = ci_95[, 1],
+  ci95_upper = ci_95[, 2],
+  fw_lower = ci_fw[, 1],
+  fw_upper = ci_fw[, 2]
+)
+
+results
+
+# Decision in each era: reject H0 if 0 is outside the adjusted interval
+results$reject_H0 = results$fw_lower > 0 | results$fw_upper < 0
+
+results[, c("r", "fw_lower", "fw_upper", "reject_H0")]
+
+
+# Comparison: L13 classical T test and Fisher interval for rho in each era
+# (both assume bivariate normality, which the Shapiro-Wilk tests rejected)
+classical = t(sapply(names(x_split), function(era_name) {
+  X = x_split[[era_name]]
+  Y = y_split[[era_name]]
+  n = length(Y)
+
+  # Correlation from its definition (no cor())
+  rxy = sum((X - mean(X))*(Y - mean(Y))) /
+    sqrt(sum((X - mean(X))^2)*sum((Y - mean(Y))^2))
+
+  # Classical approach
+  SE_r = sqrt((1 - rxy^2)/(n-2))
+  tstat = (rxy - 0)/SE_r
+  pval = 2*pt(abs(tstat), n-2, lower.tail=F)
+
+  # Fisher approach at the FWER-adjusted level
+  zetar = atanh(rxy)
+  zcrit = qnorm(alpha_fw/2, lower.tail=F)
+  ci_fr = tanh(c(zetar - zcrit/sqrt(n-3), zetar + zcrit/sqrt(n-3)))
+
+  c(tstat = tstat, df = n - 2, pval = pval,
+    fisher_lower = ci_fr[1], fisher_upper = ci_fr[2])
+}))
+
+classical
+
+# Reject at the adjusted level if the p-value is below alpha_fw
+classical[, "pval"] < alpha_fw
+
+
+# Monte-Carlo permutation test in each era: if H0 is true, any player's
+# rebounding could have been paired with any player's three-point rate,
+# so shuffle Y, recompute the correlation, and see how often a correlation
+# at least as far from 0 as the observed one appears by chance
+nmc = 10000
+perm_cor = list()
+
+for (era_name in names(x_split)) {
+  X = x_split[[era_name]]
+  Y = y_split[[era_name]]
+
+  set.seed(123)
+  mcrs = c()
+  for(k in 1:nmc){
+    mcY = sample(Y)
+    mcrs = c(mcrs, cor(X, mcY))
+  }
+
+  perm_cor[[era_name]] = mcrs
+}
+
+# Two-sided Monte-Carlo p-value with the plus-one rule
+perm_count = sapply(names(perm_cor), function(era_name) {
+  sum(abs(perm_cor[[era_name]]) >= abs(rj[era_name]))
+})
+perm_pval = (perm_count + 1)/(nmc + 1)
+
+data.frame(r = rj,
+           most_extreme_shuffled = sapply(perm_cor, function(v) max(abs(v))),
+           count = perm_count,
+           pval = perm_pval,
+           reject_H0 = perm_pval < alpha_fw)
+
+
+# Graph: permutation distribution of the correlation under H0 in each era
+old_par = par(mfrow = c(2, 2))
+
+for (era_name in names(perm_cor)) {
+  hist(perm_cor[[era_name]], breaks = 40, col = "lightpink",
+       xlim = c(-1, 1),
+       main = era_name,
+       xlab = "Correlation after shuffling", ylab = "Frequency")
+  abline(v = rj[era_name], col = "blue", lwd = 2)
+}
+
+par(old_par)
+
+
+# Graph: bootstrap distribution of the correlation in each era
+old_par = par(mfrow = c(2, 2))
+
+for (era_name in names(boot_cor)) {
+  hist(boot_cor[[era_name]], breaks = 40, col = "lightblue",
+       xlim = c(-1, 0),
+       main = era_name,
+       xlab = "Bootstrap correlation", ylab = "Frequency")
+  abline(v = ci_fw[era_name, ], col = "red", lwd = 2, lty = 2)
+  abline(v = rj[era_name], col = "blue", lwd = 2)
+}
+
+par(old_par)
+
+
+# Graph: correlation and FWER-adjusted bootstrap interval for each era
+plot(1:g, rj, pch = 19, xaxt = "n",
+     xlim = c(0.5, g + 0.5), ylim = c(-1, 0.1),
+     main = "Correlation by era with adjusted bootstrap intervals",
+     xlab = "Era", ylab = "Correlation (3PA rate vs offensive rebounds)")
+axis(1, at = 1:g, labels = names(rj))
+arrows(1:g, ci_fw[, 1], 1:g, ci_fw[, 2],
+       angle = 90, code = 3, length = 0.08)
+abline(h = 0, lty = 2, col = "gray")
+
+
+# For comparison: the correlation with all eras pooled together
+cor(nonpar_data$three_point_attempt_rate, nonpar_data$orb_per_36)
 
 # Boxplot of offensive rebounding by era for context
 boxplot(orb_per_36 ~ assigned_era, data = nonpar_data, col = "lightblue",
