@@ -115,6 +115,12 @@ g = length(x_split)
 
 nj
 
+# Correlation from its definition (L13, no cor())
+corr_def = function(X, Y){
+  sum((X - mean(X))*(Y - mean(Y))) /
+    sqrt(sum((X - mean(X))^2)*sum((Y - mean(Y))^2))
+}
+
 # Familywise error rate if each of the d = 4 tests used alpha (L06)
 d = g
 1 - (1 - alpha)^d
@@ -127,13 +133,41 @@ alpha_fw
 
 
 # Why a nonparametric test: the usual t test for a correlation assumes
-# the two variables are (bivariate) normal, so check each one formally
-for (era_name in names(x_split)) {
-  cat("\nNormality tests for", era_name, "\n")
-
-  print(shapiro.test(x_split[[era_name]]))
-  print(shapiro.test(y_split[[era_name]]))
+# the two variables are (bivariate) normal, so check each one formally.
+# Shapiro-Francia statistic by hand (L04): small values mean non-normal
+sfstat = function(S){
+  X = sort(S)
+  n = length(X)
+  Xc = X - mean(X)
+  SST = sum(Xc^2)
+  mk = qnorm((1:n - 3/8)/(n+1/4))
+  mk_length = as.numeric(sqrt(t(mk)%*%mk))
+  ak = mk/mk_length
+  tau = (sum(ak*Xc))^2
+  tau/SST
 }
+
+# Monte-Carlo p-value (left tail, plus-one rule). The statistic does not
+# depend on the mean or SD, so standard normal samples of the same size
+# give its null distribution.
+set.seed(123)
+nmc_sf = 10000
+normality = t(sapply(names(x_split), function(era_name) {
+  n = nj[era_name]
+  mcsf = c()
+  for(k in 1:nmc_sf){
+    mcsf = c(mcsf, sfstat(rnorm(n, 0, 1)))
+  }
+  sf_rate = sfstat(x_split[[era_name]])
+  sf_orb = sfstat(y_split[[era_name]])
+  c(SF_rate = sf_rate, pval_rate = (sum(mcsf <= sf_rate) + 1)/(nmc_sf + 1),
+    SF_orb = sf_orb, pval_orb = (sum(mcsf <= sf_orb) + 1)/(nmc_sf + 1))
+}))
+
+normality
+
+# Reject normality if the p-value is at or below alpha
+normality[, c("pval_rate", "pval_orb")] <= alpha
 
 # Players with no three-point attempts pile up at zero
 sapply(x_split, function(v) sum(v == 0))
@@ -144,7 +178,7 @@ sapply(x_split, function(v) sum(v > 0.10))
 
 # Sample correlation in each era
 rj = sapply(names(x_split), function(era_name) {
-  cor(x_split[[era_name]], y_split[[era_name]])
+  corr_def(x_split[[era_name]], y_split[[era_name]])
 })
 
 rj
@@ -170,7 +204,7 @@ for (era_name in names(x_split)) {
     sboot = sample(myindex, n, replace=T)
     Xboot = X[sboot]
     Yboot = Y[sboot]
-    mycor = c(mycor, cor(Xboot, Yboot))
+    mycor = c(mycor, corr_def(Xboot, Yboot))
   }
 
   boot_cor[[era_name]] = mycor
@@ -206,15 +240,14 @@ results[, c("r", "fw_lower", "fw_upper", "reject_H0")]
 
 
 # Comparison: L13 classical T test and Fisher interval for rho in each era
-# (both assume bivariate normality, which the Shapiro-Wilk tests rejected)
+# (both assume bivariate normality, which the Shapiro-Francia tests rejected)
 classical = t(sapply(names(x_split), function(era_name) {
   X = x_split[[era_name]]
   Y = y_split[[era_name]]
   n = length(Y)
 
   # Correlation from its definition (no cor())
-  rxy = sum((X - mean(X))*(Y - mean(Y))) /
-    sqrt(sum((X - mean(X))^2)*sum((Y - mean(Y))^2))
+  rxy = corr_def(X, Y)
 
   # Classical approach
   SE_r = sqrt((1 - rxy^2)/(n-2))
@@ -251,7 +284,7 @@ for (era_name in names(x_split)) {
   mcrs = c()
   for(k in 1:nmc){
     mcY = sample(Y)
-    mcrs = c(mcrs, cor(X, mcY))
+    mcrs = c(mcrs, corr_def(X, mcY))
   }
 
   perm_cor[[era_name]] = mcrs
@@ -271,7 +304,7 @@ data.frame(r = rj,
 
 
 # For comparison: the correlation with all eras pooled together
-cor(nonpar_data$three_point_attempt_rate, nonpar_data$orb_per_36)
+corr_def(nonpar_data$three_point_attempt_rate, nonpar_data$orb_per_36)
 
 
 # ======================= Figures for the report ===============================
@@ -283,7 +316,9 @@ era_titles = c(era_1 = "Era 1 (1981–1991)", era_2 = "Era 2 (1992–2002)",
 dir.create("reports/figures", showWarnings = FALSE)
 
 
-# Figure 3.1: scatterplot in each era with a smooth trend line
+# Figure 3.1: scatterplot in each era with a trend line built by hand:
+# the mean of each variable within 0.05-wide bands of three-point rate
+# (bands with at least 5 players)
 png("reports/figures/q3_fig1_scatter.png", width = 2000, height = 1500,
     res = 250)
 par(mfrow = c(2, 2), mar = c(4.2, 4.5, 2.2, 1), las = 1)
@@ -295,8 +330,11 @@ for (era_name in names(x_split)) {
        main = era_titles[era_name],
        xlab = "Three-point attempt rate",
        ylab = "Offensive rebounds per 36")
-  lines(lowess(x_split[[era_name]], y_split[[era_name]]),
-        col = "red", lwd = 2)
+  band = floor(x_split[[era_name]]/0.05)
+  band_n = tapply(x_split[[era_name]], band, length)
+  band_x = tapply(x_split[[era_name]], band, mean)[band_n >= 5]
+  band_y = tapply(y_split[[era_name]], band, mean)[band_n >= 5]
+  lines(band_x, band_y, type = "b", pch = 15, col = "red", lwd = 2)
   legend("topright", legend = sprintf("r = %.3f", rj[era_name]), bty = "n")
 }
 
