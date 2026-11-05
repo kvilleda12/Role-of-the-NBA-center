@@ -57,6 +57,7 @@ for (i in seq_len(nrow(rookies))) {
     Era = as.character(cut(rookie, breaks = c(1980, 1991, 2002, 2013, 2024),
                            labels = era_labels, right = TRUE)),
     RookieSeason = rookie,
+    minimum_season_fga = min(rows$fga),
     Season1 = rates[1], Season2 = rates[2],
     Season3 = rates[3], Season4 = rates[4]
   )
@@ -64,13 +65,21 @@ for (i in seq_len(nrow(rookies))) {
 
 eligible = do.call(rbind, eligible_rows)
 eligible = eligible[order(eligible$player_id), ]
+minimum_fga = 100
+if (!any(eligible$minimum_season_fga >= minimum_fga)) {
+  minimum_fga = 70
+}
+below_minimum = sum(eligible$minimum_season_fga < minimum_fga)
+eligible = eligible[eligible$minimum_season_fga >= minimum_fga, ]
+cat("Minimum FGA in each of the first four seasons:", minimum_fga, "\n")
+cat("Otherwise eligible players excluded by the per-season FGA minimum:", below_minimum, "\n")
 eligible_counts = table(factor(eligible$Era, levels = era_labels))
 cat("Eligible players by era:\n")
 print(eligible_counts)
 cat("Exclusions among players whose first recorded NBA season is 1981-2024:\n")
 print(exclusions)
 
-target = c(13, 13, 12, 12)
+target = c(12, 12, 12, 12)
 if (any(eligible_counts < target)) {
   print(data.frame(Era = era_labels, Eligible = as.integer(eligible_counts), Target = target))
   stop("Insufficient eligible players for the planned sample; no players duplicated.")
@@ -83,7 +92,7 @@ for (j in seq_along(era_labels)) {
   selected = c(selected, sample(candidates, target[j], replace = FALSE))
 }
 sampled = eligible[selected, ]
-stopifnot(nrow(sampled) == 50, !anyDuplicated(sampled$player_id))
+stopifnot(nrow(sampled) == sum(target), !anyDuplicated(sampled$player_id))
 nba = sampled[c("Player", "Era", "RookieSeason", "Season1", "Season2", "Season3", "Season4")]
 stopifnot(!anyNA(nba), all(as.matrix(nba[c("Season1", "Season2", "Season3", "Season4")]) >= 0),
           all(as.matrix(nba[c("Season1", "Season2", "Season3", "Season4")]) <= 1))
@@ -155,7 +164,7 @@ Fcrit
 cat("Sample means and standard deviations:\n")
 print(data.frame(Season = paste0("Season", 1:4), Mean = xbarj,
                  SD = apply(X, 2, sd)), row.names = FALSE)
-cat("Manual RM-ANOVA results (df = 3, 147):\n")
+cat("Uncorrected manual RM-ANOVA results (df =", g-1, ",", (n-1)*(g-1), "):\n")
 print(c(SST = SST, SSM = SSM, SSS = SSS, SSE = SSE,
         MSM = MSM, MSE = MSE, Fstat = Fstat, Fcrit = Fcrit, pval = pval))
 
@@ -195,10 +204,42 @@ Mo
 mauchly_pval
 
 if (mauchly_pval < alpha) {
-  cat("Sphericity is rejected. The ordinary RM-ANOVA p-value requires correction; no correction was applied.\n")
+  cat("Sphericity is rejected. Apply the Lecture 9 correction below.\n")
 } else {
   cat("Sphericity is not rejected by the supplied Mauchly test.\n")
 }
+
+# MA416 Lecture 9, pages 12-13: GG/HF correction, exactly as supplied.
+uncorrected_pval = pval
+C = diag(g) - matrix(1, g, g)/g
+
+sighatc = C %*% var(X) %*% C
+
+eps_gg = sum(diag(sighatc))^2 /
+         ((g-1)*sum(diag(sighatc %*% sighatc)))
+
+eps_hf = min(1, (n*(g-1)*eps_gg - 2) /
+         ((g-1)*((n-1) - (g-1)*eps_gg)))
+
+c(eps_gg, eps_hf)
+
+if(eps_gg > 0.75){
+    eps = eps_hf
+} else {
+    eps = eps_gg
+}
+
+df1 = (g-1)*eps
+df2 = (n-1)*(g-1)*eps
+
+pval = pf(Fstat, df1, df2, lower.tail=F)
+
+cat("Lecture 9 correction factors:\n")
+print(c(eps_gg = eps_gg, eps_hf = eps_hf))
+cat("Selected correction:", if(eps_gg > 0.75) "Huynh-Feldt" else "Greenhouse-Geisser", "\n")
+print(c(Fstat=Fstat, eps=eps,
+        df1=df1, df2=df2, pval=pval))
+
 cat("Players are distinct, but shared teams and league conditions may limit independence.\n")
 cat("Repeated observations belong to the same player and are expected to be dependent.\n")
 cat("Rookie years are inferred from the first recorded NBA season in the source.\n")
