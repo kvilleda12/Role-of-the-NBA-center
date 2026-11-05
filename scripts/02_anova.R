@@ -42,6 +42,26 @@ for (era_name in names(rates_by_era)) {
 # Restore the previous plotting settings
 par(old_par)
 
+# Detrended normal Q-Q plots: observed minus expected normal quantiles.
+old_par = par(mfrow = c(2, 2))
+
+for (era_name in names(rates_by_era)) {
+  rates = rates_by_era[[era_name]]
+  qq = qqnorm(rates, plot.it = FALSE)
+  expected = mean(rates) + sd(rates) * qq$x
+
+  plot(
+    qq$x, qq$y - expected,
+    main = paste("Detrended Q-Q:", era_name),
+    xlab = "Theoretical normal quantiles",
+    ylab = "Observed - expected 3PA rate",
+    pch = 19, col = "blue"
+  )
+  abline(h = 0, col = "red", lty = 2)
+}
+
+par(old_par)
+
 
 # Set the significance level
 alpha = 0.05
@@ -56,9 +76,15 @@ for (era_name in names(rates_by_era)) {
 }
 
 
+# Bartlett's test of equal variances; sensitive to nonnormality.
+bartlett_result = bartlett.test(
+  three_point_attempt_rate ~ assigned_era,
+  data = big_men_analysis
+)
+print(bartlett_result)
+
 # Ordinary one-factor ANOVA
-# Caution: normality was rejected in all four eras;
-# equal population variances have not been established.
+# Caution: normality and equal variances are rejected in these data.
 
 anova_model = aov(
   three_point_attempt_rate ~ assigned_era,

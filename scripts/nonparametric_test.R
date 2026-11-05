@@ -31,10 +31,10 @@ player_totals = read.csv(
   stringsAsFactors = FALSE
 )
 
-# Keep NBA records from 1981 through 2025
+# Keep NBA records from 1981 through 2024
 nba_totals = subset(
   player_totals,
-  lg == "NBA" & season >= 1981 & season <= 2025
+  lg == "NBA" & season >= 1981 & season <= 2024
 )
 
 # Keep combined-team records for traded players and drop their stints
@@ -56,7 +56,7 @@ big_totals = nba_totals[nba_totals$pos %in% big_positions, ]
 # Label each season with its era
 big_totals$season_era = as.character(cut(
   big_totals$season,
-  breaks = c(1980, 1991, 2002, 2013, 2025),
+  breaks = c(1980, 1991, 2002, 2013, 2024),
   labels = c("era_1", "era_2", "era_3", "era_4"),
   right = TRUE
 ))
@@ -98,7 +98,7 @@ nonpar_data$assigned_era = factor(
 )
 
 
-# Primary test group: era 4 (2014-2025)
+# Primary test group: era 4 (2014-2024)
 era4 = subset(nonpar_data, assigned_era == "era_4")
 
 x = era4$three_point_attempt_rate

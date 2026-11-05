@@ -12,10 +12,10 @@ names(player_stats)
 head(player_stats)
 
 
-# Keep NBA records from 1981 through 2025
+# Keep NBA records from 1981 through 2024
 nba_seasons = subset(
   player_stats,
-  lg == "NBA" & season >= 1981 & season <= 2025
+  lg == "NBA" & season >= 1981 & season <= 2024
 )
 
 # Check the filtered data
@@ -109,7 +109,7 @@ era_labels = c("era_1", "era_2", "era_3", "era_4")
 # Assign each player-season to an era
 big_men_seasons$season_era = cut(
   big_men_seasons$season,
-  breaks = c(1980, 1991, 2002, 2013, 2025),
+  breaks = c(1980, 1991, 2002, 2013, 2024),
   labels = era_labels,
   right = TRUE
 )

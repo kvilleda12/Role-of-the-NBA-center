@@ -15,20 +15,20 @@ totals = totals[order(totals$combined, decreasing = TRUE), ]
 totals = totals[!duplicated(totals[c("player_id", "season")]), ]
 
 rookies = aggregate(season ~ player_id, data = totals, FUN = min)
-rookies = rookies[rookies$season >= 1981 & rookies$season <= 2025, ]
+rookies = rookies[rookies$season >= 1981 & rookies$season <= 2024, ]
 rookies = rookies[order(rookies$player_id), ]
 big_positions = c("C", "PF", "C-PF", "PF-C", "C/PF", "PF/C")
 era_labels = c("era_1", "era_2", "era_3", "era_4")
 eligible_rows = list()
-exclusions = c(fourth_season_after_2025 = 0, missing_consecutive_season = 0,
+exclusions = c(fourth_season_after_2024 = 0, missing_consecutive_season = 0,
                not_big_man_all_four_seasons = 0, missing_attempts = 0,
                invalid_attempts = 0)
 
 for (i in seq_len(nrow(rookies))) {
   id = rookies$player_id[i]
   rookie = rookies$season[i]
-  if (rookie + 3 > 2025) {
-    exclusions["fourth_season_after_2025"] = exclusions["fourth_season_after_2025"] + 1
+  if (rookie + 3 > 2024) {
+    exclusions["fourth_season_after_2024"] = exclusions["fourth_season_after_2024"] + 1
     next
   }
   rows = totals[totals$player_id == id & totals$season %in% (rookie + 0:3), ]
@@ -54,7 +54,7 @@ for (i in seq_len(nrow(rookies))) {
   rates = rows$x3pa / rows$fga
   eligible_rows[[length(eligible_rows) + 1]] = data.frame(
     player_id = id, Player = rows$player[1],
-    Era = as.character(cut(rookie, breaks = c(1980, 1991, 2002, 2013, 2025),
+    Era = as.character(cut(rookie, breaks = c(1980, 1991, 2002, 2013, 2024),
                            labels = era_labels, right = TRUE)),
     RookieSeason = rookie,
     Season1 = rates[1], Season2 = rates[2],
@@ -67,7 +67,7 @@ eligible = eligible[order(eligible$player_id), ]
 eligible_counts = table(factor(eligible$Era, levels = era_labels))
 cat("Eligible players by era:\n")
 print(eligible_counts)
-cat("Exclusions among players whose first recorded NBA season is 1981-2025:\n")
+cat("Exclusions among players whose first recorded NBA season is 1981-2024:\n")
 print(exclusions)
 
 target = c(13, 13, 12, 12)
